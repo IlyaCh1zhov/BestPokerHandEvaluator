@@ -23,6 +23,7 @@ class Card:
         return str(self.value) + ', ' + str(self.suit)
 
 
+# а нафига генерировать всю колоду, если тебе нужно только 7 карт?
 def generate_cards():
     values = [*range(2, 11), "J", "Q", "K", "A"]
     suits = ["H", "D", "C", "S"]
