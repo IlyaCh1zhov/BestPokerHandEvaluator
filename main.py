@@ -1,6 +1,8 @@
-from random import sample
 from collections import deque
 from collections import Counter
+from itertools import product
+from random import choice
+from random import sample
 
 
 class Card:
@@ -19,140 +21,204 @@ class Card:
             self.weight = value
 
     def __str__(self):
-        # return str(self.value) + ', ' + str(self.suit) + ', ' + "weight is: " + str(self.weight)
         return str(self.value) + ', ' + str(self.suit)
 
 
-def generate_cards():
+def generate_hand():
     values = [*range(2, 11), "J", "Q", "K", "A"]
     suits = ["H", "D", "C", "S"]
-    return [Card(i, j) for i in values for j in suits]
-
-
-def generate_hand(cards):
-    return sample(cards, 7)
+    tpl_list = sample(list(set(product(values, suits))), 7)
+    return [Card(tpl[0], tpl[1]) for tpl in tpl_list]
 
 
 def get_suits(cards):
-    return [Card.suit for Card in cards]
+    return [card.suit for card in cards]
 
 
 def get_weights(cards):
-    return [Card.weight for Card in cards]
+    return [card.weight for card in cards]
 
 
 def get_all_straights(cards):
-    unique_weights = set(get_weights(cards))
-    q = deque()
-    if len(unique_weights) >= 5:
-        if 14 in unique_weights:
-            if 2 in unique_weights:
-                card_consequence = cards[0:4]
-                weight_consequence = get_weights(card_consequence)
-                if check_consequence(weight_consequence):
-                    weight_consequence.append(14)
-                    card_consequence.insert(0, cards[-1])
-                    q.append(card_consequence)
+    unique_weights = sorted(set(get_weights(cards)))
+    if len(unique_weights) < 5:
+        return None
+    all_straights_q = deque()
+    # частный случай для самого младшего стрита с туза до 5 /
+    # particular case for lowest straight from Ace to 5
+    if 14 in unique_weights and 2 in unique_weights and check_consequence(unique_weights[0:4]):
+        card_consequence = [cards[-1]]  # туз добавляем первым
+        for unique_weight in unique_weights[0:4]:
+            for card in cards:
+                if unique_weight == card.weight and card.weight not in get_weights(card_consequence):
+                    card_consequence.append(card)
+        all_straights_q.append(card_consequence)
 
-        weights = get_weights(cards)
-        for i in range(3):
-            card_consequence = cards[i:i + 5]
-            weight_consequence = weights[i:i + 5]
-            if check_consequence(weight_consequence):
-                q.append(card_consequence)
-
-    return q
+    # поиск всех возможных стритов по последовательности уникальных весов
+    #  searching for all possible straights in hand
+    for i in range(len(unique_weights)-4):
+        unique_weights_slice = unique_weights[i:i + 5]
+        if check_consequence(unique_weights_slice):
+            card_consequence = []
+            for card in cards:
+                for unique_weight in unique_weights_slice:
+                    if unique_weight == card.weight and card.weight not in get_weights(card_consequence):
+                        card_consequence.append(card)
+            all_straights_q.append(card_consequence)
+    return all_straights_q
 
 
 def get_max_straight(q_straight):
     if q_straight:
         return q_straight.pop()
-    return []
 
 
 def get_single_suit_consequence(cards):
-    single_suit_consequence = []
     most_common_suit = Counter(get_suits(cards)).most_common(1)[0][0]
-    for Card in cards:
-        if Card.suit == most_common_suit:
-            single_suit_consequence.append(Card)
-    return single_suit_consequence
+    return [card for card in cards if card.suit == most_common_suit]
 
 
 def get_max_flush(single_suit_consequence):
     if len(single_suit_consequence) >= 5:
         return single_suit_consequence[len(single_suit_consequence) - 5:len(single_suit_consequence)]
-    return []
 
 
 def get_straight_flush(single_suit_consequence):
-    q = get_all_straights(single_suit_consequence)
-    if q:
-        return get_max_straight(q)
-    return []
+    all_straights_q = get_all_straights(single_suit_consequence)
+    if all_straights_q:
+        return get_max_straight(all_straights_q)
 
 
 def get_royal_flush(straight_flush):
     if straight_flush[-1].weight == 14:
         return straight_flush
-    return []
 
 
+def get_most_frequent_cards(cards, most_common_weight):
+    return [card for card in cards if card.weight == most_common_weight]
+
+
+# checks if numbers of list are consequent / проверяем, идут ли числа в списке строго по порядку
 def check_consequence(lst):
     return lst == list(range(min(lst), max(lst) + 1))
 
 
-def detect_combo(cards):
-    cards.sort(key=lambda Card: Card.weight)
+def sort_cards(cards):
+    cards.sort(key=lambda card: card.weight)
     print("Sorted hand is:")
-    for Card in hand:
-        print(f"{Card}, weight is: {Card.weight}")
+    for card in hand:
+        print(f"{card}, weight is: {card.weight}")
 
-    # searching all combinations
+
+def detect_combo(cards,
+                 first_most_common_weight, first_most_common_weight_frequency,
+                 second_most_common_weight, second_most_common_weight_frequency):
     combinations_q = deque()
-
     combinations_q.append(("High card", [cards[-1]]))
+
     straight = get_max_straight(get_all_straights(cards))
     flush = get_max_flush(get_single_suit_consequence(cards))
     straight_flush = get_straight_flush(get_single_suit_consequence(cards))
 
-    # lower combinations
+    if first_most_common_weight_frequency == 2:
+        one_pair = get_most_frequent_cards(cards, first_most_common_weight)
+        combinations_q.append(("one pair", one_pair))
+        if second_most_common_weight_frequency == 2:
+            second_pair = get_most_frequent_cards(cards, second_most_common_weight)
+            two_pairs = one_pair + second_pair
+            combinations_q.append(("two pair", two_pairs))
+
+    if first_most_common_weight_frequency == 3:
+        three_of_a_kind = get_most_frequent_cards(cards, first_most_common_weight)
+        combinations_q.append(("three of a kind", three_of_a_kind))
+        if second_most_common_weight_frequency >= 2:
+            # might be lower three of a kind, so slice is taken /
+            # в руке могут быть две тройки, поэтому от второй пары берем слайс
+            second_pair = get_most_frequent_cards(cards, second_most_common_weight)[0:2]
+            full_house = three_of_a_kind + second_pair
+            combinations_q.append(("full house", full_house))
+
     if straight:
         combinations_q.append(("straight", straight))
+
     if flush:
         combinations_q.append(("flush", flush))
-    # full_house
-    # four of a kind
+
+    if first_most_common_weight_frequency == 4:
+        four_of_a_kind = get_most_frequent_cards(cards, first_most_common_weight)
+        combinations_q.append(("four of a kind", four_of_a_kind))
+
     if straight_flush:
         combinations_q.append(("straight flush", straight_flush))
-        royal_flush = get_royal_flush(get_straight_flush(get_single_suit_consequence(cards)))
+        royal_flush = get_royal_flush(straight_flush)
         if royal_flush:
             combinations_q.append(("royal flush", royal_flush))
 
-    best_hand_tuple = combinations_q.pop()
+    return combinations_q.pop()
+
+
+def print_result(best_hand_tuple):
     print(f"Best combination is {best_hand_tuple[0]}:")
-    for Card in best_hand_tuple[1]:
-        print(Card)
+    for card in best_hand_tuple[1]:
+        print(card)
 
 
-# hardcode:
+# one pair
+# hand = [Card(9, "H"), Card(8, "H"), Card("A", "C"), Card(4, "D"), Card(2, "C"), Card(3, "H"), Card(9, "S")]
+
+# two pair
+# hand = [Card(7, "H"), Card(8, "H"), Card(3, "C"), Card(2, "D"), Card(2, "C"), Card(3, "H"), Card(9, "S")]
+
+# 3 two pair
+# hand = [Card(9, "H"), Card(9, "H"), Card(3, "C"), Card(2, "D"), Card(2, "C"), Card(3, "H"), Card(10, "S")]
+
+# three
+# hand = [Card(3, "S"), Card(5, "H"), Card(3, "C"), Card(2, "D"), Card(4, "C"), Card(3, "H"), Card(9, "H")]
+
 # straight
-# hand = [Card("A", "H"), Card(2, "H"), Card(3, "D"), Card(4, "D"), Card(5, "C"), Card("J", "S"), Card("Q", "S")]
-# hand = [Card("A", "H"), Card(2, "H"), Card(3, "D"), Card(4, "D"), Card(5, "C"), Card("K", "S"), Card("Q", "S")]
-# hand = [Card("A", "H"), Card(2, "H"), Card(3, "D"), Card(10, "D"), Card("J", "C"), Card("K", "S"), Card("Q", "S")]
-# hand = [Card("A", "H"), Card("A", "S"), Card(10, "D"), Card(9, "D"), Card("J", "C"), Card("K", "S"), Card("Q", "S")]
+# hand = [Card("J", "C"), Card("A", "H"), Card(9, "C"), Card(7, "H"), Card(8, "H"), Card(10, "C"), Card("K", "H")]
+
+# straight + two pair
+# hand = [Card(2, "C"), Card(2, "H"), Card(3, "C"), Card(3, "S"), Card(4, "H"), Card(5, "H"), Card(6, "H")]
+# hand = [Card(2, "H"), Card(3, "C"), Card(3, "S"), Card(4, "H"), Card(4, "C"), Card(5, "H"), Card("A", "H")]
+
+# several_straights
+# hand = [Card(2, "H"), Card(3, "H"), Card(4, "C"), Card(5, "S"), Card(6, "H"), Card(7, "H"), Card(8, "C")]
+
+# straight + 3
+# hand = [Card("A", "H"), Card(2, "H"), Card(3, "D"), Card(3, "D"), Card(3, "C"), Card(4, "S"), Card(5, "D")]
+
 # flush
 # hand = [Card("A", "H"), Card(2, "H"), Card(3, "H"), Card(10, "H"), Card("J", "C"), Card("K", "H"), Card("Q", "H")]
+
+# full_house
+# hand = [Card(3, "H"), Card(2, "H"), Card(3, "C"), Card(2, "D"), Card(2, "C"), Card(3, "D"), Card(4, "S")]
+
+# full_house + 3
+# hand = [Card(3, "H"), Card(2, "H"), Card(3, "C"), Card(2, "D"), Card(2, "C"), Card(3, "D"), Card(4, "S")]
+
+# full_house + 2 2
+# hand = [Card(3, "H"), Card(2, "H"), Card(3, "C"), Card(2, "D"), Card(4, "C"), Card(3, "D"), Card(4, "S")]
+
 # straight_flush
-# hand = [Card(5, "H"), Card(2, "H"), Card(3, "H"), Card(10, "D"), Card("J", "C"), Card(4, "H"), Card("A", "H")]
+# hand = [Card(5, "H"), Card(2, "H"), Card(3, "H"), Card(10, "D"), Card("J", "H"), Card(4, "H"), Card("A", "H")]
+
+# four_of_a_kind + 3
+# hand = [Card(5, "H"), Card(5, "C"), Card(5, "S"), Card(5, "D"), Card(4, "C"), Card(4, "H"), Card(4, "D")]
+
 # royal_flush
 # hand = [Card("A", "H"), Card(8, "H"), Card(9, "H"), Card(10, "H"), Card("J", "H"), Card("Q", "H"), Card("K", "H")]
 
-# real code:
-pack = generate_cards()
-hand = generate_hand(pack)
+# WrongCombo fixed
+# hand = [Card("J", "C"), Card("A", "H"), Card(9, "C"), Card(7, "H"), Card(8, "H"), Card("Q", "H"), Card("K", "H")]
+hand = generate_hand()
 print("Hand is:")
 for Card in hand:
     print(Card)
+sort_cards(hand)
 
-detect_combo(hand)
+# reversed, because we need the greatest and most common
+reversed_weights = reversed(get_weights(hand))
+counters = Counter(reversed_weights).most_common(2)
+best_hand = detect_combo(hand, *counters[0], *counters[1])
+print_result(best_hand)
