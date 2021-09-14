@@ -3,7 +3,7 @@ from collections import Counter
 from itertools import product
 from random import choice
 from random import sample
-
+from itertools import permutations
 
 class Card:
     def __init__(self, value, suit):
@@ -192,7 +192,7 @@ def print_result(best_hand_tuple):
 # hand = [Card("A", "H"), Card(2, "H"), Card(3, "H"), Card(10, "H"), Card("J", "C"), Card("K", "H"), Card("Q", "H")]
 
 # full_house
-# hand = [Card(3, "H"), Card(2, "H"), Card(3, "C"), Card(2, "D"), Card(2, "C"), Card(3, "D"), Card(4, "S")]
+hand = [Card(5, "H"), Card(2, "H"), Card(3, "C"), Card(2, "D"), Card(2, "C"), Card(3, "D"), Card(4, "S")]
 
 # full_house + 3
 # hand = [Card(3, "H"), Card(2, "H"), Card(3, "C"), Card(2, "D"), Card(2, "C"), Card(3, "D"), Card(4, "S")]
@@ -211,14 +211,24 @@ def print_result(best_hand_tuple):
 
 # WrongCombo fixed
 # hand = [Card("J", "C"), Card("A", "H"), Card(9, "C"), Card(7, "H"), Card(8, "H"), Card("Q", "H"), Card("K", "H")]
-hand = generate_hand()
+# hand = generate_hand()
 print("Hand is:")
 for Card in hand:
     print(Card)
-sort_cards(hand)
+# sort_cards(hand)
+#
+# # reversed, because we need the greatest and most common
+# reversed_weights = reversed(get_weights(hand))
+# counters = Counter(reversed_weights).most_common(2)
+# best_hand = detect_combo(hand, *counters[0], *counters[1])
+# print_result(best_hand)
 
-# reversed, because we need the greatest and most common
-reversed_weights = reversed(get_weights(hand))
-counters = Counter(reversed_weights).most_common(2)
-best_hand = detect_combo(hand, *counters[0], *counters[1])
-print_result(best_hand)
+
+def count_iterable(i):
+    return sum(1 for e in i)
+
+p = permutations(hand)
+
+print(count_iterable)
+for Card in list(p):
+    print(Card)
